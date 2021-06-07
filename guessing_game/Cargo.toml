@@ -7,4 +7,9 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+<<<<<<< HEAD
 rand = "0.5.5"
+=======
+
+rand="0.3.14"
+>>>>>>> 4f6b902362828597cd1d36211a63c249a6bc341d
