@@ -1,4 +1,3 @@
-use std::io;
 use std::cmp;
 use std::vec::Vec;
 use core::slice::Iter;
@@ -6,6 +5,8 @@ use std::thread;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::mem::drop;
+use pyo3::prelude::*;
+use pyo3::wrap_pyfunction;
 
 fn segmented_sieve(block:u64, size:u64, primes:Iter<u64>) -> Vec<u64> {
     let mut is_prime = Vec::new();
@@ -36,7 +37,7 @@ fn segmented_sieve(block:u64, size:u64, primes:Iter<u64>) -> Vec<u64> {
 }
 
 
-fn sieve(sqrtn:u64) -> Vec<u64> {
+fn classic_sieve(sqrtn:u64) -> Vec<u64> {
     let mut is_prime = Vec::new();
     let mut primes = Vec::new();
     for _ in 0..=sqrtn {
@@ -71,10 +72,12 @@ fn get_blocks(max_val:u64, size:u64) -> u64 {
     }
 }
 
-fn concurrent_sieve(max_val:u64, size:u64, num_threads:usize) -> Vec<u64> {
+
+#[pyfunction]
+fn sieve(max_val:u64, size:u64, num_threads:usize) -> PyResult<Vec<u64>> {
     let blocks = get_blocks(max_val, size);
     let sqrtn = (max_val as f64).sqrt() as u64;
-    let primes = Arc::new(sieve(sqrtn as u64));
+    let primes = Arc::new(classic_sieve(sqrtn as u64));
     let all_prime_counter = Arc::new(Mutex::new(Vec::new()));
     let block_nums: Vec<u64> = (0..blocks).collect();
     let block_nums_counter = Arc::new(Mutex::new(block_nums));
@@ -103,27 +106,12 @@ fn concurrent_sieve(max_val:u64, size:u64, num_threads:usize) -> Vec<u64> {
     for prime in all_primes.iter() {
         result.push(*prime)
     }
-    return result;
+    Ok(result)
 }
 
-fn main() {
-    let mut input = String::new();
-    let mut input2 = String::new();
-    let mut input3 = String::new();
-    println!("Amount of primes to compute");
-    let _result = io::stdin().read_line(&mut input);
-    let max_val = input.split_whitespace().next().unwrap().parse::<u64>().unwrap();
-    println!("Size of chunks");
-    let _result2 = io::stdin().read_line(&mut input2);
-    let size = input2.split_whitespace().next().unwrap().parse::<u64>().unwrap();
-    println!("Number of threads");
-    let _result3 = io::stdin().read_line(&mut input3);
-    let num_threads = input3.split_whitespace().next().unwrap().parse::<usize>().unwrap();
-    println!("Max val to compute: {}", max_val);
-    println!("Chunk size: {}", size);
-    println!("Num Threads {}", size);
-    let all_primes = concurrent_sieve(max_val, size, num_threads);
-    for prime in all_primes.iter() {
-        println!("{ }", prime);
-    }
+
+#[pymodule]
+fn concurrent_sieve(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(sieve, m)?)?;
+    Ok(())
 }
