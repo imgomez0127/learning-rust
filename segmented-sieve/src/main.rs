@@ -74,30 +74,36 @@ fn get_blocks(max_val:u64, size:u64) -> u64 {
 fn concurrent_sieve(max_val:u64, size:u64, num_threads:usize) -> Vec<u64> {
     let blocks = get_blocks(max_val, size);
     let sqrtn = (max_val as f64).sqrt() as u64;
-    let primes = sieve(sqrtn as u64);
+    let primes = Arc::new(sieve(sqrtn as u64));
     let all_prime_counter = Arc::new(Mutex::new(Vec::new()));
-    let block_nums_counter = Arc::new(Mutex::new((0..num_threads).collect()));
-    let handles = Vec::new();
+    let block_nums: Vec<u64> = (0..blocks).collect();
+    let block_nums_counter = Arc::new(Mutex::new(block_nums));
+    let mut handles = vec![];
     for _ in 0..num_threads {
         let all_prime_mutex = Arc::clone(&all_prime_counter);
         let block_nums_mutex = Arc::clone(&block_nums_counter);
+        let primes_ref = Arc::clone(&primes);
         let handle = thread::spawn(move || {
-            let blocks_guard = block_nums_mutex.lock().unwrap();
-            let block = (*blocks_guard).pop();
+            let mut blocks_guard = block_nums_mutex.lock().unwrap();
+            let block = (*blocks_guard).pop().unwrap();
             drop(blocks_guard);
-            let new_primes = segmented_sieve(block, size, primes.iter());
-            let all_primes = all_prime_mutex.lock().unwrap();
-            *all_primes.extend(new_primes.iter().copied());
+            let new_primes = segmented_sieve(block, size, primes_ref.iter());
+            let mut all_primes = all_prime_mutex.lock().unwrap();
+            (*all_primes).extend(new_primes.iter().copied());
         });
         handles.push(handle);
     }
-    for handle in handles.iter() {
+    for handle in handles {
         handle.join().unwrap();
     }
     let all_primes_mutex = Arc::clone(&all_prime_counter);
-    let all_primes = all_primes_mutex.lock().unwrap();
-    *all_primes.sort();
-    return *all_primes;
+    let mut all_primes = all_primes_mutex.lock().unwrap();
+    (*all_primes).sort();
+    let mut result = Vec::new();
+    for prime in all_primes.iter() {
+        result.push(*prime)
+    }
+    return result;
 }
 
 fn main() {
@@ -110,6 +116,7 @@ fn main() {
     println!("Size of chunks");
     let _result2 = io::stdin().read_line(&mut input2);
     let size = input2.split_whitespace().next().unwrap().parse::<u64>().unwrap();
+    println!("Number of threads");
     let _result3 = io::stdin().read_line(&mut input3);
     let num_threads = input3.split_whitespace().next().unwrap().parse::<usize>().unwrap();
     println!("Max val to compute: {}", max_val);
