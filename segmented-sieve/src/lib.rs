@@ -88,11 +88,17 @@ fn sieve(max_val:u64, size:u64, num_threads:usize) -> PyResult<Vec<u64>> {
         let primes_ref = Arc::clone(&primes);
         let handle = thread::spawn(move || {
             let mut blocks_guard = block_nums_mutex.lock().unwrap();
-            let block = (*blocks_guard).pop().unwrap();
+            let mut block_opt = (*blocks_guard).pop();
             drop(blocks_guard);
-            let new_primes = segmented_sieve(block, size, primes_ref.iter());
-            let mut all_primes = all_prime_mutex.lock().unwrap();
-            (*all_primes).extend(new_primes.iter().copied());
+            while !block_opt.is_none(){
+                let block = block_opt.unwrap();
+                let new_primes = segmented_sieve(block, size, primes_ref.iter());
+                let mut all_primes = all_prime_mutex.lock().unwrap();
+                (*all_primes).extend(new_primes.iter().copied());
+                blocks_guard = block_nums_mutex.lock().unwrap();
+                block_opt = (*blocks_guard).pop();
+                drop(blocks_guard);
+            }
         });
         handles.push(handle);
     }
